@@ -1,4 +1,6 @@
 import java.util.Arrays;
+import java.util.concurrent.Semaphore;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
@@ -13,14 +15,57 @@ public class Customer implements Runnable {
      * Initialize a customer object and randomize its shopping cart
      */
     public Customer(Bakery bakery) {
-        // TODO
+        this.bakery = bakery;
+        this.rnd = new Random();
+        this.shoppingCart = new ArrayList<>();
+        this.shopTime = rnd.nextInt(250);
+        this.checkoutTime = rnd.nextInt(250);
     }
 
     /**
      * Run tasks for the customer
      */
     public void run() {
-        // TODO
+            
+        try {
+            // customer makes shopping list
+            this.fillShoppingCart();
+
+            // customer is choosing a shelf
+            this.bakery.accessTotalShelves.acquire();
+
+            // customer chooses what bread to buy
+            // if shelf is already taken, the customer waits
+            for (BreadType b : shoppingCart) {
+                Semaphore individualShelfAccess = this.bakery.shelfAccess.get(b);
+                individualShelfAccess.acquire();
+                Thread.sleep(shopTime / shoppingCart.size()); 
+                this.bakery.takeBread(b);
+                individualShelfAccess.release();
+            }
+
+            // customer leaves the shelves and goes to registers
+            this.bakery.accessRegisters.acquire();
+            this.bakery.accessTotalShelves.release();
+
+            this.bakery.cashier.acquire();
+            // customer is now checking out
+            Thread.sleep(checkoutTime); 
+
+            // after customer checks out
+            // add transaction to sales
+            // cashier is available now
+            this.bakery.addSales(this.getItemsValue());
+            this.bakery.cashier.release();
+
+            // customer leaves bakery
+            this.bakery.accessRegisters.release();
+
+            System.out.println(this);
+        } catch (InterruptedException ie) {
+            ie.printStackTrace();
+        }
+
     }
 
     /**

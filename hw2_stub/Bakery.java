@@ -1,3 +1,5 @@
+import java.text.DecimalFormat;
+import java.util.concurrent.TimeUnit;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -13,6 +15,16 @@ public class Bakery implements Runnable {
     private float sales = 0;
 
     // TODO
+
+    public Semaphore accessTotalShelves = new Semaphore(3);
+    public Semaphore accessRegisters = new Semaphore(4);
+    public Semaphore cashier = new Semaphore(1);
+    public Map<BreadType, Semaphore> shelfAccess;
+
+    // Semaphores for shelfAccess
+    private Semaphore ryeAccess = new Semaphore(1);
+    private Semaphore sourdoughAccess = new Semaphore(1);
+    private Semaphore wonderAccess = new Semaphore(1);
 
     /**
      * Remove a loaf from the available breads and restock if necessary
@@ -50,5 +62,25 @@ public class Bakery implements Runnable {
         availableBread.put(BreadType.WONDER, FULL_BREAD);
 
         // TODO
+        shelfAccess = new ConcurrentHashMap<BreadType, Semaphore>();
+        shelfAccess.put(BreadType.RYE, ryeAccess);
+        shelfAccess.put(BreadType.SOURDOUGH, sourdoughAccess);
+        shelfAccess.put(BreadType.WONDER, wonderAccess);
+        
+        executor = Executors.newFixedThreadPool(ALLOWED_CUSTOMERS);
+
+        for (int i = 0; i < TOTAL_CUSTOMERS; i++) {
+            executor.execute(new Customer(this));
+        }
+        executor.shutdown();
+
+        try {
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+            DecimalFormat df = new DecimalFormat("0.##"); 
+            System.out.println("Total Sales: $" + df.format(sales));
+        } catch(InterruptedException ie) {
+            ie.printStackTrace();
+        }
+        
     }
 }
